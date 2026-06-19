@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import EmojiPicker from 'emoji-picker-react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+const EmojiPicker = lazy(() => import('emoji-picker-react'));
 import { Image, Smile, Trash2 } from 'lucide-react';
 import api from '../../api/docs';
 
@@ -13,6 +13,55 @@ const DEFAULT_COVERS = [
 export default function DocumentCover({ documentId, docObj, setDocObj, canEdit }) {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showCoverPicker, setShowCoverPicker] = useState(false);
+
+  const [title, setTitle] = useState(docObj?.title || '');
+  const [isFocused, setIsFocused] = useState(false);
+  const saveTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (!isFocused) {
+      setTitle(docObj?.title || '');
+    }
+  }, [docObj?.title, isFocused]);
+
+  // Clean up timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleTitleChange = (e) => {
+    const val = e.target.value;
+    setTitle(val);
+
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    saveTimeoutRef.current = setTimeout(() => {
+      if (val.trim() && val.trim() !== docObj?.title) {
+        updateDocument({ title: val.trim() });
+      }
+    }, 1000);
+  };
+
+  const handleTitleBlur = () => {
+    setIsFocused(false);
+    const finalTitle = title.trim() || 'Untitled';
+    if (finalTitle !== docObj?.title) {
+      updateDocument({ title: finalTitle });
+    }
+  };
+
+  const handleTitleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.target.blur();
+    }
+  };
 
   const updateDocument = async (updates) => {
     try {
@@ -56,11 +105,11 @@ export default function DocumentCover({ documentId, docObj, setDocObj, canEdit }
       )}
 
       {/* Main Content Area Container for Icon and Title spacing */}
-      <div className="max-w-4xl w-full mx-auto px-8 md:px-16 relative">
+      <div className="w-full relative">
         
         {/* Icon Area */}
         {hasIcon && (
-          <div className="relative group/icon -mt-12 mb-4 w-24 h-24 z-10">
+          <div className={`relative group/icon mb-4 w-24 h-24 z-10 ${hasCover ? '-mt-12' : 'mt-6'}`}>
             <div className="text-[72px] leading-none absolute -top-4">{docObj.icon}</div>
             {canEdit && (
               <div className="absolute top-0 right-0 opacity-0 group-hover/icon:opacity-100 transition-opacity bg-white/90 shadow rounded-md flex flex-col z-20">
@@ -96,7 +145,9 @@ export default function DocumentCover({ documentId, docObj, setDocObj, canEdit }
           <div className="absolute z-50 mt-2 shadow-2xl rounded-lg">
             <div className="fixed inset-0 z-40" onClick={() => setShowEmojiPicker(false)}></div>
             <div className="relative z-50">
-              <EmojiPicker onEmojiClick={handleEmojiSelect} />
+              <Suspense fallback={<div className="w-80 h-64 flex items-center justify-center bg-white rounded-lg shadow-xl border border-slate-200 text-slate-400 text-sm">Loading picker…</div>}>
+                <EmojiPicker onEmojiClick={handleEmojiSelect} />
+              </Suspense>
             </div>
           </div>
         )}
@@ -120,15 +171,28 @@ export default function DocumentCover({ documentId, docObj, setDocObj, canEdit }
 
         {/* Title Input */}
         {canEdit ? (
-          <input
-            type="text"
-            className="w-full text-5xl font-extrabold text-slate-900 border-none outline-none bg-transparent placeholder-slate-200 resize-none mt-2"
-            placeholder="Untitled"
-            value={docObj?.title || ''}
-            onChange={(e) => updateDocument({ title: e.target.value })}
-          />
+          <div className="flex flex-col w-full mt-4 group/title-container">
+            <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1 pointer-events-none transition-opacity opacity-60 group-hover/title-container:opacity-100 group-focus-within/title-container:opacity-100 group-focus-within/title-container:text-blue-500 dark:group-focus-within/title-container:text-blue-400">
+              Document Title
+            </label>
+            <input
+              type="text"
+              className="w-full text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-slate-100 border-b border-slate-200/60 dark:border-slate-800/60 focus:border-blue-500 dark:focus:border-blue-400 outline-none bg-transparent placeholder-slate-200 dark:placeholder-slate-700 pb-2 transition-colors duration-200"
+              placeholder="Enter document title..."
+              value={title}
+              onFocus={() => setIsFocused(true)}
+              onChange={handleTitleChange}
+              onBlur={handleTitleBlur}
+              onKeyDown={handleTitleKeyDown}
+            />
+          </div>
         ) : (
-          <h1 className="w-full text-5xl font-extrabold text-slate-900 mt-2">{docObj?.title || 'Untitled'}</h1>
+          <div className="flex flex-col w-full mt-4">
+            <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1">
+              Document Title
+            </label>
+            <h1 className="w-full text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-slate-100 pb-2">{docObj?.title || 'Untitled'}</h1>
+          </div>
         )}
       </div>
     </div>

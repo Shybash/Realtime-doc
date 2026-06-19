@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { db } from '../firebase';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import React, { useEffect, useState, useCallback } from 'react';
 import api from '../../api/docs';
+import { formatDate } from '../../utils/dateUtils';
 
 const CommentSidebar = ({ docId, focusedCommentId, onClose }) => {
   const [comments, setComments] = useState([]);
@@ -9,53 +8,53 @@ const CommentSidebar = ({ docId, focusedCommentId, onClose }) => {
   const [error, setError] = useState(null);
   const [userMap, setUserMap] = useState({});
 
-  useEffect(() => {
+  // ── Fetch comments via backend (Admin SDK — bypasses Firestore client rules) ──
+  const fetchComments = useCallback(async () => {
     if (!docId) return;
-    setLoading(true);
-    const q = query(
-      collection(db, 'documents', docId, 'comments'),
-      orderBy('createdAt')
-    );
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const commentList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setComments(commentList);
-        setLoading(false);
-      },
-      (err) => {
-        setError(err.message);
-        setLoading(false);
-      }
-    );
-    return () => unsubscribe();
+    try {
+      const res = await api.get(`/docs/${docId}/comments`);
+      setComments(res.data || []);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to load comments:', err);
+      setError(err?.response?.data?.error || err.message || 'Failed to load comments');
+    } finally {
+      setLoading(false);
+    }
   }, [docId]);
 
-  // Fetch user info when comments change
+  // Initial load + poll every 5 s for near-real-time updates
+  useEffect(() => {
+    setLoading(true);
+    setComments([]);
+    fetchComments();
+
+    const interval = setInterval(fetchComments, 5000);
+    return () => clearInterval(interval);
+  }, [fetchComments]);
+
+  // Fetch display names / emails for comment authors
   useEffect(() => {
     const userIds = Array.from(new Set(comments.map(c => c.userId).filter(Boolean)));
-    if (userIds.length > 0) {
-      api.post('/auth/user-info', { uids: userIds })
-        .then(res => {
-          const map = {};
-          res.data.users.forEach(u => { map[u.uid] = u.email || u.uid; });
-          setUserMap(map);
-          console.log('User map:', map); // Debug log
-        })
-        .catch(err => {
-          console.error('Failed to fetch user info:', err);
-        });
-    }
+    if (userIds.length === 0) return;
+
+    api.post('/auth/user-info', { uids: userIds })
+      .then(res => {
+        const map = {};
+        res.data.users.forEach(u => { map[u.uid] = u.email || u.uid; });
+        setUserMap(map);
+      })
+      .catch(err => console.error('Failed to fetch user info for comments:', err));
   }, [comments]);
 
+
   const sidebarContent = (
-    <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-lg font-semibold">Comments</h3>
-        {/* Show close button on mobile */}
+    <div className="h-full flex flex-col p-4">
+      <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 dark:border-slate-800">
+        <h3 className="text-lg font-bold text-slate-850 dark:text-slate-100">Comments</h3>
         {onClose && (
           <button
-            className="md:hidden text-gray-500 hover:text-gray-800 text-2xl px-2"
+            className="md:hidden text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-2xl font-bold px-2"
             onClick={onClose}
             aria-label="Close comments"
           >
@@ -63,22 +62,43 @@ const CommentSidebar = ({ docId, focusedCommentId, onClose }) => {
           </button>
         )}
       </div>
-      <div className="flex-1 overflow-y-auto">
+
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
         {loading ? (
-          <div>Loading comments...</div>
+          <div className="text-slate-400 dark:text-slate-500 text-sm py-4">Loading comments...</div>
         ) : error ? (
-          <div>Error: {error}</div>
+          <div className="text-red-500 text-sm py-4">Error: {error}</div>
         ) : comments.length === 0 ? (
-          <div>No comments yet.</div>
+          <div className="text-slate-400 dark:text-slate-500 text-sm py-8 text-center font-medium">
+            No comments yet.
+          </div>
         ) : (
-          <ul>
-            {comments.map(comment => (
-              <li key={comment.id} style={{ background: focusedCommentId === comment.id ? '#fff3cd' : undefined, borderRadius: 4, padding: 4 }}>
-                <div><strong>User:</strong> {userMap[comment.userId] || comment.userId}</div>
-                <div>{comment.content}</div>
-                <div style={{ fontSize: '0.8em', color: '#888' }}>{comment.createdAt?.toDate?.().toLocaleString?.() || ''}</div>
-              </li>
-            ))}
+          <ul className="space-y-3">
+            {comments.map(comment => {
+              const isFocused = focusedCommentId === comment.id;
+              return (
+                <li
+                  key={comment.id}
+                  className={`p-3 rounded-xl border transition-all ${
+                    isFocused
+                      ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-900/60 shadow-sm'
+                      : 'bg-slate-50 dark:bg-slate-950 border-slate-100 dark:border-slate-900/40'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate max-w-[150px]">
+                      {userMap[comment.userId] || comment.userId}
+                    </span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                      {formatDate(comment.createdAt)}
+                    </span>
+                  </div>
+                  <div className="text-sm text-slate-800 dark:text-slate-100 leading-relaxed break-words">
+                    {comment.content}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -96,7 +116,7 @@ const CommentSidebar = ({ docId, focusedCommentId, onClose }) => {
       {onClose && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div className="flex-1 bg-black bg-opacity-40" onClick={onClose}></div>
-          <div className="w-4/5 max-w-xs bg-white h-full shadow-lg p-4">
+          <div className="w-4/5 max-w-xs bg-white dark:bg-slate-900 h-full shadow-lg p-0">
             {sidebarContent}
           </div>
         </div>
@@ -105,4 +125,4 @@ const CommentSidebar = ({ docId, focusedCommentId, onClose }) => {
   );
 };
 
-export default CommentSidebar; 
+export default CommentSidebar;

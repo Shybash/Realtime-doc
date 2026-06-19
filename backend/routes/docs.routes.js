@@ -4,6 +4,8 @@ import { requireDocumentRole } from '../middlewares/documentRole.js';
 import verifyJWT from '../middlewares/auth.js';
 import sanitizeHtml from 'sanitize-html';
 import { nanoid } from 'nanoid';
+import * as Y from 'yjs';
+import { docs } from '../utils/documentStore.js';
 
 const router = express.Router();
 const db = getFirestore();
@@ -27,9 +29,11 @@ router.get('/', async (req, res) => {
     const docsSnapshot = await query.get();
     let documents = [];
     docsSnapshot.forEach(doc => {
+      const data = doc.data();
       documents.push({
         id: doc.id,
-        ...doc.data()
+        ...data,
+        title: data.title || 'Untitled'
       });
     });
     if (q) {
@@ -49,7 +53,8 @@ router.get('/:id', requireDocumentRole(['admin', 'editor', 'viewer']), async (re
     const doc = req.document;
     res.json({
       id: req.params.id,
-      ...doc
+      ...doc,
+      title: doc.title || 'Untitled'
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -103,6 +108,7 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', requireDocumentRole(['admin', 'editor']), async (req, res) => {
   try {
+    console.log('PUT /docs/:id body:', req.body);
     const { title, userId, content, parentId, coverImage, icon } = req.body;
     const docRef = db.collection('documents').doc(req.params.id);
     const updateData = {
@@ -117,9 +123,11 @@ router.put('/:id', requireDocumentRole(['admin', 'editor']), async (req, res) =>
 
     await docRef.update(updateData);
     const updatedDoc = await docRef.get();
+    const data = updatedDoc.data();
     res.json({
       id: updatedDoc.id,
-      ...updatedDoc.data()
+      ...data,
+      title: data.title || 'Untitled'
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -180,8 +188,137 @@ router.get('/shared/:token', async (req, res) => {
     res.json({
       id: doc.id,
       ...data,
+      title: data.title || 'Untitled',
       sharePermission: data.sharePermission || 'viewer',
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- VERSION HISTORY ENDPOINTS ---
+
+// 1. Get all versions of a document
+router.get('/:id/versions', requireDocumentRole(['admin', 'editor', 'viewer']), async (req, res) => {
+  try {
+    const versionsSnapshot = await db
+      .collection('documents')
+      .doc(req.params.id)
+      .collection('versions')
+      .orderBy('createdAt', 'desc')
+      .get();
+    
+    const versions = [];
+    versionsSnapshot.forEach(doc => {
+      versions.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+    res.json(versions);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 2. Create a new version snapshot
+router.post('/:id/versions', requireDocumentRole(['admin', 'editor']), async (req, res) => {
+  try {
+    const { name } = req.body;
+    const docId = req.params.id;
+    const userEmail = req.user?.email || 'Anonymous';
+    
+    // Check if the document is active in WebSocket memory
+    const roomName = `document-${docId}`;
+    const activeRoom = docs.get(roomName);
+    
+    let yjsStateBase64 = null;
+    let htmlContent = '';
+    
+    if (activeRoom && activeRoom.doc) {
+      // Get state directly from memory Yjs doc
+      const update = Y.encodeStateAsUpdate(activeRoom.doc);
+      yjsStateBase64 = Buffer.from(update).toString('base64');
+      // Fall back to the last saved HTML content in Firestore
+      const docSnap = await db.collection('documents').doc(docId).get();
+      if (docSnap.exists) {
+        htmlContent = docSnap.data().content || '';
+      }
+    } else {
+      // Get from Firestore document
+      const docSnap = await db.collection('documents').doc(docId).get();
+      if (!docSnap.exists) return res.status(404).json({ error: 'Document not found' });
+      const data = docSnap.data();
+      yjsStateBase64 = data.yjsState || Buffer.from(Y.encodeStateAsUpdate(new Y.Doc())).toString('base64');
+      htmlContent = data.content || '';
+    }
+
+    if (!yjsStateBase64) {
+      return res.status(400).json({ error: 'No content to create version from' });
+    }
+
+    const versionRef = await db
+      .collection('documents')
+      .doc(docId)
+      .collection('versions')
+      .add({
+        name: name || `Snapshot ${new Date().toLocaleString()}`,
+        yjsState: yjsStateBase64,
+        content: htmlContent,
+        createdAt: new Date(),
+        createdBy: userEmail
+      });
+
+    res.status(201).json({
+      id: versionRef.id,
+      name: name || `Snapshot ${new Date().toLocaleString()}`,
+      createdAt: new Date(),
+      createdBy: userEmail
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 3. Restore a version snapshot
+router.post('/:id/versions/:versionId/restore', requireDocumentRole(['admin', 'editor']), async (req, res) => {
+  try {
+    const docId = req.params.id;
+    const versionId = req.params.versionId;
+    
+    const versionSnap = await db
+      .collection('documents')
+      .doc(docId)
+      .collection('versions')
+      .doc(versionId)
+      .get();
+      
+    if (!versionSnap.exists) {
+      return res.status(404).json({ error: 'Version not found' });
+    }
+    
+    const versionData = versionSnap.data();
+    
+    // Update main document fields
+    await db.collection('documents').doc(docId).update({
+      yjsState: versionData.yjsState,
+      content: versionData.content,
+      updatedAt: new Date()
+    });
+    
+    // If active in memory, evict it so it reloads on reconnect
+    const roomName = `document-${docId}`;
+    if (docs.has(roomName)) {
+      docs.delete(roomName);
+    }
+    
+    // Broadcast reload event to all connected room clients
+    const io = req.app.get('io');
+    if (io) {
+      io.to(roomName).emit('document-restored');
+    }
+    
+    res.json({ message: 'Document restored successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

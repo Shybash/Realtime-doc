@@ -11,38 +11,42 @@ const Document = lazy(() => import('./components/Document'));
 import PrivateRoute from './components/PrivateRoute';
 import CommandPalette from './components/CommandPalette';
 
+import { ThemeProvider } from './components/ThemeContext';
+
 function App() {
   return (
     <GlobalErrorBoundary>
-      <Router>
-        <CommandPalette />
-        <Toaster 
-          position="top-right"
-          toastOptions={{
-            duration: 3000,
-            style: {
-              background: '#fff',
-              color: '#334155',
-              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-              borderRadius: '0.75rem',
-              border: '1px solid #e2e8f0',
-            },
-            success: {
-              iconTheme: {
-                primary: '#10b981',
-                secondary: '#fff',
+      <ThemeProvider>
+        <Router>
+          <CommandPalette />
+          <Toaster 
+            position="top-right"
+            toastOptions={{
+              duration: 3000,
+              style: {
+                background: '#fff',
+                color: '#334155',
+                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+                borderRadius: '0.75rem',
+                border: '1px solid #e2e8f0',
               },
-            },
-            error: {
-              iconTheme: {
-                primary: '#ef4444',
-                secondary: '#fff',
+              success: {
+                iconTheme: {
+                  primary: '#10b981',
+                  secondary: '#fff',
+                },
               },
-            },
-          }}
-        />
-        <AppRoutes />
-      </Router>
+              error: {
+                iconTheme: {
+                  primary: '#ef4444',
+                  secondary: '#fff',
+                },
+              },
+            }}
+          />
+          <AppRoutes />
+        </Router>
+      </ThemeProvider>
     </GlobalErrorBoundary>
   );
 }

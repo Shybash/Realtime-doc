@@ -17,6 +17,7 @@ import docsRoutes from "./routes/docs.routes.js";
 import * as Y from "yjs";
 import { Awareness, encodeAwarenessUpdate } from "y-protocols/awareness.js";
 import commentRoutes from './routes/comments.routes.js';
+import { docs } from "./utils/documentStore.js";
 
 dotenv.config();
 
@@ -28,6 +29,15 @@ if (missingEnvs.length > 0) {
   console.error("Please create or update your backend/.env file.");
   process.exit(1);
 }
+
+// Global Process Event Listeners to prevent crashes from external network timeouts (e.g. Firestore)
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Unhandled Rejection] Promise:', promise, 'Reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[Uncaught Exception] Error:', err);
+});
 
 const app = express();
 
@@ -54,7 +64,8 @@ const io = new SocketIOServer(server, {
 });
 
 const db = getFirestore();
-const docs = new Map();
+
+app.set('io', io);
 
 async function saveYDocToFirestore(roomName) {
   const room = docs.get(roomName);
@@ -66,7 +77,7 @@ async function saveYDocToFirestore(roomName) {
     .doc(docId)
     .set(
       {
-        content: Buffer.from(update).toString("base64"),
+        yjsState: Buffer.from(update).toString("base64"),
         updatedAt: new Date(),
       },
       { merge: true }
@@ -78,18 +89,15 @@ async function loadYDocFromFirestore(roomName) {
   const docSnap = await db.collection("documents").doc(docId).get();
   if (!docSnap.exists) return null;
   const data = docSnap.data();
-  if (typeof data.content === "string" && data.content.length > 0) {
+  const stateStr = data.yjsState;
+  if (typeof stateStr === "string" && stateStr.length > 0) {
     try {
       const ydoc = new Doc();
-      const update = Buffer.from(data.content, "base64");
+      const update = Buffer.from(stateStr, "base64");
       applyUpdate(ydoc, update);
       return ydoc;
     } catch (e) {
-      console.error("Failed to decode Yjs update from Firestore:", e);
-      await db
-        .collection("documents")
-        .doc(docId)
-        .update({ content: "", updatedAt: new Date() });
+      console.warn("Failed to decode Yjs update from Firestore, returning empty doc:", e);
       return new Doc();
     }
   }
@@ -199,4 +207,34 @@ io.on("connection", (socket) => {
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(` Server running at http://localhost:${PORT}`);
+});
+
+// ── Periodic Auto-save ────────────────────────────────────────────────────────
+// Saves all active in-memory Yjs documents to Firestore every 60 seconds.
+// Without this, if the server crashes, all in-progress edits since the last
+// user disconnect are permanently lost. Auto-save limits that window to 60s.
+const AUTO_SAVE_INTERVAL_MS = 60_000;
+
+const autoSaveInterval = setInterval(async () => {
+  const activeRooms = Array.from(docs.keys());
+  if (activeRooms.length === 0) return;
+
+  console.log(`[AutoSave] Saving ${activeRooms.length} active room(s) to Firestore…`);
+  await Promise.allSettled(
+    activeRooms.map(roomName =>
+      saveYDocToFirestore(roomName).catch(err =>
+        console.error(`[AutoSave] Failed to save ${roomName}:`, err)
+      )
+    )
+  );
+}, AUTO_SAVE_INTERVAL_MS);
+
+// Clean shutdown — flush all rooms before exiting
+process.on('SIGTERM', async () => {
+  console.log('[SIGTERM] Flushing all active documents before shutdown…');
+  clearInterval(autoSaveInterval);
+  await Promise.allSettled(
+    Array.from(docs.keys()).map(roomName => saveYDocToFirestore(roomName))
+  );
+  process.exit(0);
 });
