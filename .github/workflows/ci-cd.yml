@@ -20,19 +20,32 @@ jobs:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: |
-            backend/package-lock.json
+            backend/services/auth-service/package.json
+            backend/services/document-service/package.json
+            backend/services/notification-service/package.json
             frontend/package-lock.json
 
-      # Backend Verification
-      - name: Install Backend Deps
+      # Backend Verification (Services checking)
+      - name: Install Backend Auth Service Deps
         run: |
-          cd backend
-          npm ci
+          cd backend/services/auth-service
+          npm install
 
-      - name: Check Backend Syntax
+      - name: Install Backend Document Service Deps
         run: |
-          cd backend
-          node --check server.js
+          cd backend/services/document-service
+          npm install
+
+      - name: Install Backend Notification Service Deps
+        run: |
+          cd backend/services/notification-service
+          npm install
+
+      - name: Check Backend Services Syntax
+        run: |
+          node --check backend/services/auth-service/server.js
+          node --check backend/services/document-service/server.js
+          node --check backend/services/notification-service/server.js
 
       # Frontend Verification
       - name: Install Frontend Deps
@@ -65,18 +78,51 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # Build and push Backend Image
-      - name: Build and Push Backend Image
+      # 1. Build and push Auth Service Image
+      - name: Build and Push Auth Service Image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: collabdocs-backend
+          ECR_REPOSITORY: collabdocs-auth-service
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest backend/
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest backend/services/auth-service/
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-      # Build and push Frontend Image
+      # 2. Build and push Document Service Image
+      - name: Build and Push Document Service Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: collabdocs-document-service
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest backend/services/document-service/
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      # 3. Build and push Notification Service Image
+      - name: Build and Push Notification Service Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: collabdocs-notification-service
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest backend/services/notification-service/
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      # 4. Build and push API Gateway Image
+      - name: Build and Push API Gateway Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: collabdocs-api-gateway
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest backend/gateway/
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      # 5. Build and push Frontend Image
       - name: Build and Push Frontend Image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -86,53 +132,3 @@ jobs:
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest frontend/
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-
-  deploy:
-    name: Deploy to AWS ECS
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
-      - name: Download Task Definitions
-        run: |
-          aws ecs describe-task-definition --task-definition collabdocs-backend --query taskDefinition > task-def-backend.json
-          aws ecs describe-task-definition --task-definition collabdocs-frontend --query taskDefinition > task-def-frontend.json
-
-      # Update Task definition with new image tag
-      - name: Fill in the new image ID in the Amazon ECS task definition (Backend)
-        id: render-backend
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: task-def-backend.json
-          container-name: backend
-          image: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/collabdocs-backend:${{ github.sha }}
-
-      - name: Deploy Amazon ECS task (Backend)
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.render-backend.outputs.task-definition }}
-          service: collabdocs-backend
-          cluster: collabdocs-cluster
-          wait-for-service-stability: true
-
-      - name: Fill in the new image ID in the Amazon ECS task definition (Frontend)
-        id: render-frontend
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: task-def-frontend.json
-          container-name: frontend
-          image: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/collabdocs-frontend:${{ github.sha }}
-
-      - name: Deploy Amazon ECS task (Frontend)
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.render-frontend.outputs.task-definition }}
-          service: collabdocs-frontend
-          cluster: collabdocs-cluster
-          wait-for-service-stability: true
