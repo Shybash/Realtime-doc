@@ -58,77 +58,30 @@ jobs:
           cd frontend
           npm run build
 
-  build-and-push:
-    name: Build & Push Docker Images
+  test-docker-build:
+    name: Verify Docker Builds (Dry Run)
     needs: verify
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      # 1. Build and push Auth Service Image
-      - name: Build and Push Auth Service Image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: collabdocs-auth-service
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Build Auth Service Image
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest backend/services/auth-service/
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker build -t collabdocs-auth-service:test backend/services/auth-service/
 
-      # 2. Build and push Document Service Image
-      - name: Build and Push Document Service Image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: collabdocs-document-service
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Build Document Service Image
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest backend/services/document-service/
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker build -t collabdocs-document-service:test backend/services/document-service/
 
-      # 3. Build and push Notification Service Image
-      - name: Build and Push Notification Service Image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: collabdocs-notification-service
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Build Notification Service Image
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest backend/services/notification-service/
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker build -t collabdocs-notification-service:test backend/services/notification-service/
 
-      # 4. Build and push API Gateway Image
-      - name: Build and Push API Gateway Image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: collabdocs-api-gateway
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Build API Gateway Image
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest backend/gateway/
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker build -t collabdocs-api-gateway:test backend/gateway/
 
-      # 5. Build and push Frontend Image
-      - name: Build and Push Frontend Image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: collabdocs-frontend
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Build Frontend Image
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest frontend/
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker build -t collabdocs-frontend:test frontend/
