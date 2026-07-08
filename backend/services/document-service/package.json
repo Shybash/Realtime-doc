@@ -1,0 +1,40 @@
+{
+  "name": "document-service",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "@apollo/server": "^5.5.1",
+    "@as-integrations/express5": "^1.1.2",
+    "@socket.io/redis-adapter": "^8.3.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.0.1",
+    "express-validator": "^7.2.1",
+    "firebase-admin": "^13.4.0",
+    "graphql": "^16.14.2",
+    "helmet": "^8.1.0",
+    "lib0": "^0.2.114",
+    "lodash": "^4.17.21",
+    "lodash.debounce": "^4.0.8",
+    "morgan": "^1.10.0",
+    "nanoid": "^5.1.5",
+    "redis": "^6.1.0",
+    "sanitize-html": "^2.17.0",
+    "socket.io": "^4.8.1",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "y-protocols": "^1.0.6",
+    "y-websocket": "^1.5.4",
+    "yjs": "^13.6.27"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

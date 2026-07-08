@@ -1,5 +1,6 @@
 import admin from '../firebase/admin.js';
 import sanitizeHtml from 'sanitize-html';
+import eventBus from '../utils/eventBus.js';
 const db = admin.firestore();
 
 export const addComment = async (req, res) => {
@@ -18,6 +19,7 @@ export const addComment = async (req, res) => {
     };
 
     const ref = await db.collection('documents').doc(docId).collection('comments').add(comment);
+    eventBus.publish('comment.created', { docId, commentId: ref.id, userId, content });
     const newComment = await ref.get();
     res.status(201).json({ id: ref.id, ...newComment.data() });
   } catch (err) {
@@ -55,6 +57,7 @@ export const deleteComment = async (req, res) => {
   try {
     const { docId, commentId } = req.params;
     await db.collection('documents').doc(docId).collection('comments').doc(commentId).delete();
+    eventBus.publish('comment.deleted', { docId, commentId });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

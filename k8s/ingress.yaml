@@ -1,0 +1,48 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: collabdocs-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    # Enable sticky sessions for Socket.IO WebSocket load balancing
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/affinity-mode: "balanced"
+    nginx.ingress.kubernetes.io/session-cookie-name: "route"
+    nginx.ingress.kubernetes.io/session-cookie-expires: "172800"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
+    # Increase proxy timeouts for active WebSocket sessions
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  rules:
+  - host: collabdocs.local
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: collabdocs-backend-service
+            port:
+              number: 5000
+      - path: /socket.io
+        pathType: Prefix
+        backend:
+          service:
+            name: collabdocs-backend-service
+            port:
+              number: 5000
+      - path: /graphql
+        pathType: Prefix
+        backend:
+          service:
+            name: collabdocs-backend-service
+            port:
+              number: 5000
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: collabdocs-frontend-service
+            port:
+              number: 80

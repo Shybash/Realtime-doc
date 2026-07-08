@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { motion } from "framer-motion";
 import toast from 'react-hot-toast';
@@ -8,6 +8,7 @@ import { getFriendlyErrorMessage } from "../utils/firebaseErrors";
 const Login = () => {
   const { emailLogin } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,7 +21,8 @@ const Login = () => {
     try {
       await emailLogin(email, password);
       toast.success("Welcome back!");
-      navigate("/documents");
+      const from = location.state?.from || "/documents";
+      navigate(from);
     } catch (err) {
       const friendlyMsg = getFriendlyErrorMessage(err);
       toast.error(friendlyMsg);

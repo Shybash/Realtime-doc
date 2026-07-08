@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useParams, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import sanitizeHtml from "sanitize-html";
-import api from "../api/docs";
+import api, { authApi } from "../api/docs";
 import toast from "react-hot-toast";
 import DocumentHeader from "./document/DocumentHeader";
 import DocumentToolbar from "./document/DocumentToolbar";
@@ -54,7 +54,7 @@ const Document = ({ onSave }) => {
   const [shareInfo, setShareInfo] = useState(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
 
-  const { editor, isYjsReady, idbSynced, onlineUsers, setOnlineUsers } = useYjsProvider(
+  const { editor, isYjsReady, idbSynced, onlineUsers, setOnlineUsers, socket } = useYjsProvider(
     documentId,
     user,
     userId,
@@ -109,7 +109,7 @@ const Document = ({ onSave }) => {
     setLookupError("");
     setLookupLoading(true);
     try {
-      const res = await api.post("/auth/lookup-uid", { email: newUserEmail });
+      const res = await authApi.post("/auth/lookup-uid", { email: newUserEmail });
       const uid = res.data.uid;
       if (docObj.permissions.some((perm) => perm.userId === uid)) {
         setLookupError("User already has a role");
@@ -171,7 +171,7 @@ const Document = ({ onSave }) => {
       if (!docObj?.permissions?.length) return;
       const uids = docObj.permissions.map((p) => p.userId);
       try {
-        const res = await api.post("/auth/user-info", { uids });
+        const res = await authApi.post("/auth/user-info", { uids });
         const map = {};
         res.data.users.forEach((u) => {
           map[u.uid] = u;
@@ -373,6 +373,7 @@ const Document = ({ onSave }) => {
               docId={documentId}
               focusedCommentId={focusedCommentId}
               onClose={() => setShowSidebar(false)}
+              socket={socket}
             />
           </div>
         )}

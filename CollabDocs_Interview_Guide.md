@@ -568,6 +568,133 @@ realtime-doc/
 └── render.yaml                  # Render.com deployment configuration
 ```
 
+*Good luck with your interviews! This project demonstrates real-time systems design, secure authentication patterns, CRDT-based conflict resolution, and full-stack React/Node.js development — all strong differentiators.*
+
 ---
 
-*Good luck with your interviews! This project demonstrates real-time systems design, secure authentication patterns, CRDT-based conflict resolution, and full-stack React/Node.js development — all strong differentiators.*
+## 8. Version 2.0: Advanced Enterprise & Cloud-Native Features
+
+### 8.1 🔄 Event-Driven Architecture (EDA)
+*   **Why we implemented this:** 
+    In standard request-response systems, post-processing operations (like generating audit trails or dispatching commenter notifications) block the primary API execution loop. By implementing a pub/sub EventBus, we decoupled backend business logic: Express controllers simply fire events, and subscribers process them asynchronously. This speeds up API response times, makes components highly modular, and allows us to scale handlers independently.
+*   **Core Code:**
+    *   Event Broker Utility: [eventBus.js](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/backend/utils/eventBus.js) (handles Redis connections and falls back to Node `EventEmitter` locally).
+    *   Subscribers / Listeners: [eventHandlers.js](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/backend/subscribers/eventHandlers.js) (processes audit logs and notifications).
+    *   Express Integration: Dispatched via `eventBus.publish()` inside [docs.routes.js](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/backend/routes/docs.routes.js) and [commentController.js](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/backend/controllers/commentController.js).
+*   **How to verify:**
+    1. Start the server (`npm run dev` in `backend/`).
+    2. Check the console startup logs to confirm the subscribers are initialized:
+       `[Subscribers] Initializing Event-Driven subscribers...`
+       `[EventBus] Registered subscriber for: document.created`
+    3. Create or delete a document or comment via the UI/API.
+    4. Confirm that the terminal logs the decoupled background processing:
+       `[Audit Trail] 🆕 Document "Sprint Plan" was created by user: ...`
+
+---
+
+### 8.2 🎛️ GraphQL API Design
+*   **Why we implemented this:**
+    Traditional REST endpoints can cause **over-fetching** (loading the entire document body when you only want the title list) or **under-fetching** (requiring multiple HTTP round-trips to get a document and then fetch its comments). Our GraphQL API endpoint (`/graphql`) allows clients to request exactly the fields they need, reducing mobile data consumption and network overhead.
+*   **Core Code:**
+    *   GraphQL TypeDefs: [schema.js](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/backend/graphql/schema.js)
+    *   Resolvers: [resolvers.js](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/backend/graphql/resolvers.js) (integrates Firestore operations and checks Firebase JWT auth).
+    *   Server mounting: Mounts Apollo Server 5 via `@as-integrations/express5` in [server.js](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/backend/server.js).
+    *   Frontend Client: [graphql.js](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/frontend/src/api/graphql.js) (lightweight Axios wrapper).
+*   **How to verify:**
+    1. Send a POST request to `http://localhost:5000/graphql` using Postman, Apollo Sandbox, or your frontend.
+    2. Use the query:
+       ```graphql
+       query {
+         documents(all: true) {
+           id
+           title
+           createdAt
+         }
+       }
+       ```
+    3. Verify that only the specified fields are returned in the JSON payload.
+
+---
+
+### 8.3 🧩 Micro-Frontend (MFE) Pattern
+*   **Why we implemented this:**
+    In large enterprises, frontend monorepos are often split among different teams. By implementing **Vite Module Federation**, we exposed CollabDocs' collaborative `DocumentEditor` and `DocumentToolbar` components as self-contained remote modules. Other applications (like a company's main intranet portal or a dashboard app) can now load and mount our collaborative editor dynamically at runtime.
+*   **Core Code:**
+    *   Federation Config: [vite.config.js](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/frontend/vite.config.js) (defines remote exposes and configures shared packages like React and Yjs to prevent duplicate loads).
+*   **How to verify:**
+    1. Run `npm run build` in the `frontend/` directory.
+    2. Inspect the build directory (`dist/assets/`).
+    3. Verify that the build output generates module federation entry points:
+       *   `remoteEntry.js`
+       *   `__federation_expose_DocumentEditor-*.js`
+       *   `__federation_expose_DocumentToolbar-*.js`
+
+---
+
+### 8.4 📄 REST API Swagger Documentation
+*   **Why we implemented this:**
+    APIs need clear, interactive contracts. We added JSDoc Swagger specifications to automatically compile route metadata, giving developers a live interface to test and query endpoints.
+*   **Core Code:**
+    *   Swagger Setup: [swagger.js](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/backend/utils/swagger.js)
+    *   Annotations: Added above Express auth paths in [auth.routes.js](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/backend/routes/auth.routes.js).
+    *   Server mounting: Hosted on `/api-docs` inside [server.js](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/backend/server.js).
+*   **How to verify:**
+    1. Run the backend server (`npm run dev`).
+    2. Open your web browser and navigate to `http://localhost:5000/api-docs`.
+    3. You will see the interactive Swagger UI interface detailing all authentication routes.
+
+---
+
+### 8.5 🔀 Socket.IO Redis Scaling Adapter
+*   **Why we implemented this:**
+    WebSocket connections are stateful and bound to server memory. If User A is connected to server instance #1, and User B is connected to instance #2, they cannot collaborate. We implemented the `@socket.io/redis-adapter` so that all socket updates are published to a Redis Pub/Sub channel. This links multiple backend instances, enabling global sync across clustered instances.
+*   **Core Code:**
+    *   Adapter integration: Configured in [server.js](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/backend/server.js).
+*   **How to verify:**
+    1. On startup, Socket.IO checks for Redis environment variables (`REDIS_URL` or `REDIS_HOST`).
+    2. If Redis is running, you will see:
+       `[Socket.IO] Redis adapter successfully connected and configured for horizontal scaling.`
+    3. If Redis is offline, it falls back to:
+       `[Socket.IO] No Redis configuration found. Running with default in-memory socket adapter.`
+
+---
+
+### 8.6 🐳 Kubernetes Orchestration (under `/k8s`)
+*   **Why we implemented this:**
+    Manually deploying, scaling, and managing containerized applications is error-prone. Kubernetes handles container self-healing, rolling updates, and service discovery. 
+    Our custom **Ingress configurations configure sticky sessions (session affinity)**. This is crucial because Socket.IO performs an HTTP handshake before upgrading to WebSockets; if subsequent handshakes hit different backend replicas, the connection drops.
+*   **Core Code:**
+    *   Dockerfiles: Multi-stage [Dockerfile](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/backend/Dockerfile) (backend) and [Dockerfile](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/frontend/Dockerfile) (frontend).
+    *   Manifests: Grouped in `/k8s`. [ingress.yaml](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/k8s/ingress.yaml) specifies the Nginx Ingress annotations for stickiness:
+        `nginx.ingress.kubernetes.io/affinity: "cookie"`
+*   **How to verify:**
+    1. Deploy to a local cluster (e.g. Minikube or Kind) using:
+       `kubectl apply -k k8s/`
+    2. Verify all pods are running successfully:
+       `kubectl get pods -n collabdocs-prod`
+
+---
+
+### 8.7 🏗️ Terraform / IaC (under `/terraform`)
+*   **Why we implemented this:**
+    Infrastructure as Code (IaC) ensures that your entire network, compute resources, load balancers, and security firewall rules are fully defined, versioned, and reproducible.
+*   **Core Code:**
+    *   [vpc.tf](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/terraform/vpc.tf): Network setup with public and private subnets.
+    *   [alb.tf](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/terraform/alb.tf): Application Load Balancer with target group stickiness configured.
+    *   [ecs.tf](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/terraform/ecs.tf): Cluster and ECS Fargate definitions.
+*   **How to verify:**
+    1. Verify file schemas and compile states:
+       `cd terraform`
+       `terraform init`
+       `terraform validate`
+
+---
+
+### 8.8 🚀 CI/CD Pipeline
+*   **Why we implemented this:**
+    Automating build, test, and release flows prevents human errors during deployment. The pipeline validates tests, compiles Docker builds, tags images, pushes to AWS ECR, and applies rolling updates to ECS.
+*   **Core Code:**
+    *   Workflow Config: [.github/workflows/ci-cd.yml](file:///c:/Users/shybash.shaik/Desktop/realtime-doc/.github/workflows/ci-cd.yml).
+*   **How to verify:**
+    1. Push code to the `main` branch.
+    2. Check the "Actions" tab on your GitHub repository page to watch the automated checks and compilation stages execute.

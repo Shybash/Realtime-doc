@@ -6,6 +6,7 @@ import sanitizeHtml from 'sanitize-html';
 import { nanoid } from 'nanoid';
 import * as Y from 'yjs';
 import { docs } from '../utils/documentStore.js';
+import eventBus from '../utils/eventBus.js';
 
 const router = express.Router();
 const db = getFirestore();
@@ -89,6 +90,7 @@ router.post('/', async (req, res) => {
       permissions,
       allowedUsers
     });
+    eventBus.publish('document.created', { id: docRef.id, title, userId });
     res.status(201).json({
       id: docRef.id,
       title,
@@ -122,6 +124,7 @@ router.put('/:id', requireDocumentRole(['admin', 'editor']), async (req, res) =>
     if (icon !== undefined) updateData.icon = sanitizeHtml(icon);
 
     await docRef.update(updateData);
+    eventBus.publish('document.updated', { id: req.params.id, title: updateData.title || (req.document ? req.document.title : 'Untitled'), changes: updateData });
     const updatedDoc = await docRef.get();
     const data = updatedDoc.data();
     res.json({
@@ -157,6 +160,7 @@ router.delete('/:id', requireDocumentRole(['admin']), async (req, res) => {
   try {
     const docRef = db.collection('documents').doc(req.params.id);
     await docRef.delete();
+    eventBus.publish('document.deleted', { id: req.params.id });
     res.json({ message: 'Document deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -306,6 +310,9 @@ router.post('/:id/versions/:versionId/restore', requireDocumentRole(['admin', 'e
       updatedAt: new Date()
     });
     
+    // Publish restore event
+    eventBus.publish('document.restored', { id: docId, versionName: versionData.name, userEmail });
+
     // If active in memory, evict it so it reloads on reconnect
     const roomName = `document-${docId}`;
     if (docs.has(roomName)) {

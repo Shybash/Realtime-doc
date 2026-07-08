@@ -11,6 +11,13 @@ import { encodeStateAsUpdate, applyUpdate, Doc } from "yjs";
 import { Buffer } from "buffer";
 import helmet from "helmet";
 import morgan from "morgan";
+import { ApolloServer } from "@apollo/server";
+import { expressMiddleware } from "@as-integrations/express5";
+import { typeDefs } from "./graphql/schema.js";
+import { resolvers } from "./graphql/resolvers.js";
+import { createClient } from "redis";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { swaggerUi, swaggerSpec } from "./utils/swagger.js";
 
 import authRoutes from "./routes/auth.routes.js";
 import docsRoutes from "./routes/docs.routes.js";
@@ -18,8 +25,12 @@ import * as Y from "yjs";
 import { Awareness, encodeAwarenessUpdate } from "y-protocols/awareness.js";
 import commentRoutes from './routes/comments.routes.js';
 import { docs } from "./utils/documentStore.js";
+import { initEventSubscribers } from "./subscribers/eventHandlers.js";
 
 dotenv.config();
+
+// Initialize Event-Driven Subscribers
+initEventSubscribers();
 
 // Environment Variable Validation
 const requiredEnvs = ['JWT_SECRET', 'FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY'];
@@ -62,6 +73,29 @@ const io = new SocketIOServer(server, {
     credentials: true,
   },
 });
+
+// Configure Redis adapter for Socket.IO horizontal scaling
+const redisUrl = process.env.REDIS_URL || process.env.REDIS_HOST;
+if (redisUrl) {
+  try {
+    const pubClient = createClient(
+      redisUrl.startsWith("redis://") ? { url: redisUrl } : { socket: { host: redisUrl, port: 6379 } }
+    );
+    const subClient = pubClient.duplicate();
+
+    pubClient.on("error", (err) => console.error("[Socket.IO Redis] Pub Client Error:", err));
+    subClient.on("error", (err) => console.error("[Socket.IO Redis] Sub Client Error:", err));
+
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+    
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log("[Socket.IO] Redis adapter successfully connected and configured for horizontal scaling.");
+  } catch (error) {
+    console.warn("[Socket.IO] Redis adapter connection failed. Falling back to default memory adapter:", error.message);
+  }
+} else {
+  console.log("[Socket.IO] No Redis configuration found. Running with default in-memory socket adapter.");
+}
 
 const db = getFirestore();
 
@@ -127,6 +161,39 @@ app.use(
 );
 app.use(cookieParser());
 app.use(express.json());
+
+// Initialize Apollo Server
+const apolloServer = new ApolloServer({
+  typeDefs,
+  resolvers,
+});
+await apolloServer.start();
+
+app.use(
+  "/graphql",
+  expressMiddleware(apolloServer, {
+    context: async ({ req }) => {
+      let user = null;
+      try {
+        const token = req.cookies?.token;
+        if (token) {
+          const decoded = await admin.auth().verifyIdToken(token);
+          user = {
+            uid: decoded.uid,
+            email: decoded.email,
+            name: decoded.name || null,
+          };
+        }
+      } catch (err) {
+        // Context user remains null if token invalid/missing
+      }
+      return { user };
+    },
+  })
+);
+
+// Mount Swagger API Documentation
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.use("/api/auth", authRoutes);
 app.use('/api', commentRoutes);

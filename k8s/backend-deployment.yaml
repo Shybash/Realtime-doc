@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collabdocs-backend
+  labels:
+    app: collabdocs
+    component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: collabdocs
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: collabdocs
+        component: backend
+    spec:
+      containers:
+      - name: backend
+        image: collabdocs-backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5000
+        env:
+        - name: PORT
+          value: "5000"
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: collabdocs-secrets
+              key: jwt-secret
+        - name: FIREBASE_PROJECT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: collabdocs-config
+              key: firebase-project-id
+        - name: FIREBASE_CLIENT_EMAIL
+          valueFrom:
+            configMapKeyRef:
+              name: collabdocs-config
+              key: firebase-client-email
+        - name: FIREBASE_PRIVATE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: collabdocs-secrets
+              key: firebase-private-key
+        - name: FRONTEND_URL
+          value: "http://collabdocs.local"
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "200m"
+            memory: "256Mi"

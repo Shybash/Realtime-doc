@@ -15,6 +15,39 @@ const authLimiter = rateLimit({
   message: { error: "Too many login attempts, please try again after 15 minutes" }
 });
 
+/**
+ * @openapi
+ * tags:
+ *   name: Auth
+ *   description: User authentication and session management
+ */
+
+/**
+ * @openapi
+ * /api/auth/login:
+ *   post:
+ *     summary: Authenticate user session with Firebase ID Token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - idToken
+ *             properties:
+ *               idToken:
+ *                 type: string
+ *                 description: Firebase Client-side ID token (JWT)
+ *     responses:
+ *       200:
+ *         description: Login successful. Sets httpOnly token cookie.
+ *       400:
+ *         description: Missing or invalid token body.
+ *       401:
+ *         description: Authentication failed.
+ */
 router.post(
   '/login',
   authLimiter,
@@ -34,7 +67,32 @@ router.post(
   firebaseEmailLogin
 );
 
+/**
+ * @openapi
+ * /api/auth/logout:
+ *   post:
+ *     summary: Clear user session cookie
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Logout successful.
+ */
 router.post('/logout', logout);
+
+/**
+ * @openapi
+ * /api/auth/protected:
+ *   get:
+ *     summary: Retrieve details of the currently authenticated user
+ *     tags: [Auth]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: User session object.
+ *       401:
+ *         description: Unauthorized. Cookie is missing or expired.
+ */
 router.get('/protected', verifyJWT, (req, res) => {
   res.json(req.user); 
 });

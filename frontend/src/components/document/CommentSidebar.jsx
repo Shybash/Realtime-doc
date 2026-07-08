@@ -1,14 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import api from '../../api/docs';
+import api, { authApi } from '../../api/docs';
 import { formatDate } from '../../utils/dateUtils';
 
-const CommentSidebar = ({ docId, focusedCommentId, onClose }) => {
+const CommentSidebar = ({ docId, focusedCommentId, onClose, socket }) => {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [userMap, setUserMap] = useState({});
 
-  // ── Fetch comments via backend (Admin SDK — bypasses Firestore client rules) ──
+  // ── Fetch comments via backend ──
   const fetchComments = useCallback(async () => {
     if (!docId) return;
     try {
@@ -23,22 +23,43 @@ const CommentSidebar = ({ docId, focusedCommentId, onClose }) => {
     }
   }, [docId]);
 
-  // Initial load + poll every 5 s for near-real-time updates
+  // Fetch once on mount
   useEffect(() => {
     setLoading(true);
     setComments([]);
     fetchComments();
-
-    const interval = setInterval(fetchComments, 5000);
-    return () => clearInterval(interval);
   }, [fetchComments]);
+
+  // Sync comments in real-time via WebSockets
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleCommentAdded = (newComment) => {
+      setComments((prev) => {
+        if (prev.some((c) => c.id === newComment.id)) return prev;
+        return [...prev, newComment];
+      });
+    };
+
+    const handleCommentDeleted = (deletedId) => {
+      setComments((prev) => prev.filter((c) => c.id !== deletedId));
+    };
+
+    socket.on("comment-added", handleCommentAdded);
+    socket.on("comment-deleted", handleCommentDeleted);
+
+    return () => {
+      socket.off("comment-added", handleCommentAdded);
+      socket.off("comment-deleted", handleCommentDeleted);
+    };
+  }, [socket]);
 
   // Fetch display names / emails for comment authors
   useEffect(() => {
     const userIds = Array.from(new Set(comments.map(c => c.userId).filter(Boolean)));
     if (userIds.length === 0) return;
 
-    api.post('/auth/user-info', { uids: userIds })
+    authApi.post('/auth/user-info', { uids: userIds })
       .then(res => {
         const map = {};
         res.data.users.forEach(u => { map[u.uid] = u.email || u.uid; });

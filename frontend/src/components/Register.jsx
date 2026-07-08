@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useAuth } from "./AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import toast from 'react-hot-toast';
 import { getFriendlyErrorMessage } from "../utils/firebaseErrors";
@@ -8,6 +8,7 @@ import { getFriendlyErrorMessage } from "../utils/firebaseErrors";
 const Register = () => {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -37,7 +38,8 @@ const Register = () => {
     try {
       await register(name, email, password);
       toast.success("Account created successfully!");
-      navigate("/documents");
+      const from = location.state?.from || "/documents";
+      navigate(from);
     } catch (err) {
       const friendlyMsg = getFriendlyErrorMessage(err);
       toast.error(friendlyMsg);

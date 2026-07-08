@@ -1,6 +1,7 @@
 import React from "react";
-import { Users, Wifi, WifiOff, Cloud, CloudOff, Loader2, History, Sun, Moon } from "lucide-react";
+import { ArrowLeft, Users, Wifi, WifiOff, Cloud, CloudOff, Loader2, History, Sun, Moon } from "lucide-react";
 import { useTheme } from "../ThemeContext";
+import { Link } from "react-router-dom";
 
 function getUniqueUsers(users) {
   const map = {};
@@ -27,24 +28,33 @@ const DocumentHeader = ({
   
   return (
     <div className="px-6 py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 transition-colors">
-      <div className="flex flex-col">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">{title}</h1>
-          {!canEdit && (
-             <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-medium rounded-md border border-slate-200 dark:border-slate-700">Read-only</span>
-          )}
-        </div>
-        <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-          <span className="font-medium bg-slate-100 dark:bg-slate-850 px-2 py-0.5 rounded-md text-slate-600 dark:text-slate-300">Role: {myRole}</span>
-          
-          <div className="flex items-center gap-1.5">
-            {saveStatus === "saving" ? (
-              <><Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" /> <span className="text-blue-500">Saving...</span></>
-            ) : saveStatus === "saved" ? (
-              <><Cloud className="w-3.5 h-3.5 text-green-500 dark:text-green-400" /> <span className="text-green-600 dark:text-green-400">Saved to cloud</span></>
-            ) : (
-              <><CloudOff className="w-3.5 h-3.5 text-red-500" /> <span className="text-red-500 font-semibold">Save failed</span></>
+      <div className="flex items-center gap-4">
+        <Link
+          to="/documents"
+          className="p-2 text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm"
+          title="Back to Workspace"
+        >
+          <ArrowLeft className="w-4.5 h-4.5" />
+        </Link>
+        <div className="flex flex-col">
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">{title}</h1>
+            {!canEdit && (
+               <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-medium rounded-md border border-slate-200 dark:border-slate-700">Read-only</span>
             )}
+          </div>
+          <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <span className="font-medium bg-slate-100 dark:bg-slate-850 px-2 py-0.5 rounded-md text-slate-600 dark:text-slate-300">Role: {myRole}</span>
+            
+            <div className="flex items-center gap-1.5">
+              {saveStatus === "saving" ? (
+                <><Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" /> <span className="text-blue-500">Saving...</span></>
+              ) : saveStatus === "saved" ? (
+                <><Cloud className="w-3.5 h-3.5 text-green-500 dark:text-green-400" /> <span className="text-green-600 dark:text-green-400">Saved to cloud</span></>
+              ) : (
+                <><CloudOff className="w-3.5 h-3.5 text-red-500" /> <span className="text-red-500 font-semibold">Save failed</span></>
+              )}
+            </div>
           </div>
         </div>
       </div>

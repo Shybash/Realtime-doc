@@ -129,9 +129,10 @@ const useYjsProvider = (documentId, user, userId, canEdit, autoSave, docObj) => 
     });
 
     // ── 2b. Socket.IO — online sync ────────────────────────────────────────
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
 
     const socket = io(backendUrl, {
+      withCredentials: true,
       // Retry forever so we sync as soon as connectivity is restored
       reconnection:        true,
       reconnectionAttempts: Infinity,
@@ -212,6 +213,7 @@ const useYjsProvider = (documentId, user, userId, canEdit, autoSave, docObj) => 
     setOnlineUsers,
     saveStatus,
     setSaveStatus,
+    socket: socketRef.current,
   };
 };
 
