@@ -1,0 +1,15 @@
+# Local editor rules
+.cursorrules
+
+# System Design and Resume Documents
+Shybash_Shaik_Resume.md
+CollabDocs_System_Design_Prep.md
+CollabDocs_Enterprise_DevOps_Lifecycle.md
+
+# Log files
+*.log
+npm-debug.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
