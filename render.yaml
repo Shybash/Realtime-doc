@@ -4,40 +4,43 @@ services:
     name: collabdocs-auth-service
     env: docker
     dockerContext: backend/services/auth-service
-    dockerfilePath: Dockerfile
+    dockerfilePath: backend/services/auth-service/Dockerfile
     plan: free
     envVars:
       - key: PORT
         value: "5001"
+      # Note: Set your REDIS_URL and Firebase Credentials in the Render Dashboard GUI
 
   # 2. Document Service (REST + GraphQL + Socket.IO WebSockets)
   - type: web
     name: collabdocs-document-service
     env: docker
     dockerContext: backend/services/document-service
-    dockerfilePath: Dockerfile
+    dockerfilePath: backend/services/document-service/Dockerfile
     plan: free
     envVars:
       - key: PORT
         value: "5000"
+      # Note: Set your REDIS_URL and Firebase Credentials/JWT_SECRET in the Render Dashboard GUI
 
   # 3. Notification Service (Background Event Consumer + Healthcheck)
   - type: web
     name: collabdocs-notification-service
     env: docker
     dockerContext: backend/services/notification-service
-    dockerfilePath: Dockerfile
+    dockerfilePath: backend/services/notification-service/Dockerfile
     plan: free
     envVars:
       - key: PORT
         value: "3000"
+      # Note: Set your REDIS_URL in the Render Dashboard GUI
 
   # 4. API Gateway (Nginx Proxy Router)
   - type: web
     name: collabdocs-api-gateway
     env: docker
     dockerContext: backend/gateway
-    dockerfilePath: Dockerfile
+    dockerfilePath: backend/gateway/Dockerfile
     plan: free
     envVars:
       - key: PORT
