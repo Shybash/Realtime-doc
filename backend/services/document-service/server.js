@@ -64,7 +64,7 @@ const redisUrl = process.env.REDIS_URL || process.env.REDIS_HOST;
 if (redisUrl) {
   try {
     const pubClient = createClient(
-      redisUrl.startsWith("redis://") ? { url: redisUrl } : { socket: { host: redisUrl, port: 6379 } }
+      redisUrl.startsWith("redis://") || redisUrl.startsWith("rediss://") ? { url: redisUrl } : { socket: { host: redisUrl, port: 6379 } }
     );
     const subClient = pubClient.duplicate();
 

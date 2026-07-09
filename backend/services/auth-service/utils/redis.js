@@ -7,8 +7,8 @@ const redisUrl = process.env.REDIS_URL || process.env.REDIS_HOST;
 let redisClient = null;
 
 if (redisUrl) {
-  const config = redisUrl.startsWith("redis://") 
-    ? { url: redisUrl } 
+  const config = redisUrl.startsWith("redis://") || redisUrl.startsWith("rediss://")
+    ? { url: redisUrl }
     : { socket: { host: redisUrl, port: 6379 } };
 
   redisClient = createClient(config);

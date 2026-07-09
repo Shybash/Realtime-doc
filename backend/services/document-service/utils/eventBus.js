@@ -17,8 +17,8 @@ class EventBus {
     try {
       const redis = await import("redis");
       
-      const config = redisUrlOrHost.startsWith("redis://") 
-        ? { url: redisUrlOrHost } 
+      const config = redisUrlOrHost.startsWith("redis://") || redisUrlOrHost.startsWith("rediss://")
+        ? { url: redisUrlOrHost }
         : { socket: { host: redisUrlOrHost, port: 6379 } };
 
       this.redisClient = redis.createClient(config);
