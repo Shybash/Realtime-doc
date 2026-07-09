@@ -23,14 +23,16 @@ services:
         value: 5000
       # Note: Set your REDIS_URL and Firebase Credentials/JWT_SECRET in the Render Dashboard GUI
 
-  # 3. Notification Service (Background Event Consumer)
-  - type: worker
+  # 3. Notification Service (Background Event Consumer + Healthcheck)
+  - type: web
     name: collabdocs-notification-service
     env: docker
     dockerContext: backend/services/notification-service
     dockerfilePath: Dockerfile
-    plan: starter # Render workers require the starter plan (min $7/mo)
+    plan: free
     envVars:
+      - key: PORT
+        value: 3000
       # Note: Set your REDIS_URL in the Render Dashboard GUI
 
   # 4. API Gateway (Nginx Proxy Router)
@@ -49,16 +51,16 @@ services:
     name: collabdocs-frontend
     env: static
     rootDir: frontend
-    buildCommand: npm run build
+    buildCommand: npm install && npm run build
     publishDir: dist
     envVars:
       - key: VITE_BACKEND_URL
         fromService:
           type: web
           name: collabdocs-api-gateway
-          property: host
+          envVarKey: RENDER_EXTERNAL_URL
       - key: VITE_AUTH_URL
         fromService:
           type: web
           name: collabdocs-api-gateway
-          property: host
+          envVarKey: RENDER_EXTERNAL_URL
