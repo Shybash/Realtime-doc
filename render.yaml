@@ -9,7 +9,16 @@ services:
     envVars:
       - key: PORT
         value: "5001"
-      # Note: Set your REDIS_URL and Firebase Credentials in the Render Dashboard GUI
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: REDIS_URL
+        sync: false
 
   # 2. Document Service (REST + GraphQL + Socket.IO WebSockets)
   - type: web
@@ -21,7 +30,16 @@ services:
     envVars:
       - key: PORT
         value: "5000"
-      # Note: Set your REDIS_URL and Firebase Credentials/JWT_SECRET in the Render Dashboard GUI
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CLIENT_EMAIL
+        sync: false
+      - key: FIREBASE_PRIVATE_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: REDIS_URL
+        sync: false
 
   # 3. Notification Service (Background Event Consumer + Healthcheck)
   - type: web
@@ -33,7 +51,8 @@ services:
     envVars:
       - key: PORT
         value: "3000"
-      # Note: Set your REDIS_URL in the Render Dashboard GUI
+      - key: REDIS_URL
+        sync: false
 
   # 4. API Gateway (Nginx Proxy Router)
   - type: web
