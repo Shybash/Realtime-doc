@@ -9,7 +9,6 @@ services:
     envVars:
       - key: PORT
         value: "5001"
-      # Note: Set your REDIS_URL and Firebase Credentials in the Render Dashboard GUI
 
   # 2. Document Service (REST + GraphQL + Socket.IO WebSockets)
   - type: web
@@ -21,7 +20,6 @@ services:
     envVars:
       - key: PORT
         value: "5000"
-      # Note: Set your REDIS_URL and Firebase Credentials/JWT_SECRET in the Render Dashboard GUI
 
   # 3. Notification Service (Background Event Consumer + Healthcheck)
   - type: web
@@ -33,7 +31,6 @@ services:
     envVars:
       - key: PORT
         value: "3000"
-      # Note: Set your REDIS_URL in the Render Dashboard GUI
 
   # 4. API Gateway (Nginx Proxy Router)
   - type: web
@@ -47,9 +44,8 @@ services:
         value: "8080"
 
   # 5. Frontend (Static Site React Vite)
-  - type: web
+  - type: static
     name: collabdocs-frontend
-    runtime: static
     rootDir: frontend
     buildCommand: npm install && npm run build
     publishPath: dist
