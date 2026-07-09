@@ -1,11 +1,5 @@
 services:
-  # 1. Redis Database Cache
-  - type: redis
-    name: collabdocs-redis
-    plan: free
-    ipAllowList: [] # Only allow internal network connections for security
-
-  # 2. Auth Service (Express REST API)
+  # 1. Auth Service (Express REST API)
   - type: web
     name: collabdocs-auth-service
     env: docker
@@ -15,11 +9,9 @@ services:
     envVars:
       - key: PORT
         value: 5001
-      - key: REDIS_URL
-        fromRedis: collabdocs-redis/connectionString
-      # Firebase credentials should be set in Render's dashboard dashboard under Env Groups/Secrets
+      # Note: Set your REDIS_URL (e.g. from Upstash) and Firebase Credentials in the Render Dashboard GUI
 
-  # 3. Document Service (REST + GraphQL + Socket.IO WebSockets)
+  # 2. Document Service (REST + GraphQL + Socket.IO WebSockets)
   - type: web
     name: collabdocs-document-service
     env: docker
@@ -29,22 +21,19 @@ services:
     envVars:
       - key: PORT
         value: 5000
-      - key: REDIS_URL
-        fromRedis: collabdocs-redis/connectionString
-      # Firebase credentials/JWT_SECRET should be set in Render dashboard
+      # Note: Set your REDIS_URL and Firebase Credentials/JWT_SECRET in the Render Dashboard GUI
 
-  # 4. Notification Service (Background Event Consumer)
+  # 3. Notification Service (Background Event Consumer)
   - type: worker
     name: collabdocs-notification-service
     env: docker
     dockerContext: backend/services/notification-service
     dockerfilePath: Dockerfile
-    plan: free
+    plan: starter # Render workers require the starter plan (min $7/mo)
     envVars:
-      - key: REDIS_URL
-        fromRedis: collabdocs-redis/connectionString
+      # Note: Set your REDIS_URL in the Render Dashboard GUI
 
-  # 5. API Gateway (Nginx Proxy Router)
+  # 4. API Gateway (Nginx Proxy Router)
   - type: web
     name: collabdocs-api-gateway
     env: docker
@@ -55,14 +44,12 @@ services:
       - key: PORT
         value: 8080
 
-  # 6. Frontend (Static Site React Vite)
-  - type: web
+  # 5. Frontend (Static Site React Vite)
+  - type: static
     name: collabdocs-frontend
-    env: static
     rootDir: frontend
     buildCommand: npm run build
     publishDir: dist
-    plan: free
     envVars:
       - key: VITE_BACKEND_URL
         fromService:
