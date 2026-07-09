@@ -47,12 +47,11 @@ services:
         value: 8080
 
   # 5. Frontend (Static Site React Vite)
-  - type: web
+  - type: static
     name: collabdocs-frontend
-    env: static
     rootDir: frontend
     buildCommand: npm install && npm run build
-    publishDir: dist
+    publishPath: dist
     envVars:
       - key: VITE_BACKEND_URL
         fromService:
