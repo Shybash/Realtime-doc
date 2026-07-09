@@ -133,6 +133,7 @@ const useYjsProvider = (documentId, user, userId, canEdit, autoSave, docObj) => 
 
     const socket = io(backendUrl, {
       withCredentials: true,
+      transports: ['websocket'],
       // Retry forever so we sync as soon as connectivity is restored
       reconnection:        true,
       reconnectionAttempts: Infinity,
