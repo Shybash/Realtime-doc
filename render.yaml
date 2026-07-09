@@ -19,6 +19,8 @@ services:
         sync: false
       - key: REDIS_URL
         sync: false
+      - key: NODE_ENV
+        value: "production"
 
   # 2. Document Service (REST + GraphQL + Socket.IO WebSockets)
   - type: web
@@ -40,6 +42,8 @@ services:
         sync: false
       - key: REDIS_URL
         sync: false
+      - key: NODE_ENV
+        value: "production"
 
   # 3. Notification Service (Background Event Consumer + Healthcheck)
   - type: web
@@ -53,6 +57,8 @@ services:
         value: "3000"
       - key: REDIS_URL
         sync: false
+      - key: NODE_ENV
+        value: "production"
 
   # 4. API Gateway (Nginx Proxy Router)
   - type: web
