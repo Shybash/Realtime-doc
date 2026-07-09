@@ -3,6 +3,8 @@
 
 # env files
 .env
+.env.*
+!.env.example
 
 # firebase admin SDK keys or config
 firebase-adminsdk.json

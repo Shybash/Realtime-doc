@@ -1,6 +1,42 @@
 import * as Y from 'yjs';
 import { applyAwarenessUpdate, encodeAwarenessUpdate } from 'y-protocols/awareness';
-import throttle from 'lodash.throttle';
+
+// Native lightweight throttle helper with cancel capability to eliminate lodash library dependencies
+function throttle(func, limit) {
+  let timeoutId = null;
+  let lastRun = 0;
+  
+  const throttled = function(...args) {
+    const context = this;
+    const now = Date.now();
+    
+    if (now - lastRun >= limit) {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      func.apply(context, args);
+      lastRun = now;
+    } else {
+      if (!timeoutId) {
+        timeoutId = setTimeout(() => {
+          func.apply(context, args);
+          lastRun = Date.now();
+          timeoutId = null;
+        }, limit - (now - lastRun));
+      }
+    }
+  };
+  
+  throttled.cancel = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+  };
+  
+  return throttled;
+}
 
 /**
  * SocketIOProvider
