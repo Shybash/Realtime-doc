@@ -153,3 +153,275 @@ Deploying this multi-service stack to Render's Free tier required solving severa
 1.  **Keep-Alive Pools:** Nginx maintains a persistent pool of 32 idle connections to the upstream microservices. This eliminates the 200ms–300ms TCP and TLS handshake overhead on subsequent API calls.
 2.  **Native WebSockets Bypass:** The Socket.IO React client is forced to use `transports: ['websocket']`. This prevents Socket.IO from performing HTTP long-polling negotiation, saving multiple network round-trips during connection.
 3.  **Preventing Cold Starts:** To keep the free tier containers warm and prevent Render's 50-second idle shutdown, set up a free uptime monitor (e.g., UptimeRobot) to ping the gateway and microservice URLs every 10 minutes.
+
+---
+
+## 7. API Reference & Network Contracts
+
+Below is the interface specification for the HTTP endpoints exposed by the services.
+
+### 🔑 Authentication Service (`collabdocs-auth-service`)
+
+#### 1. Login User
+Authenticates the user using a Firebase client token and sets a secure httpOnly cookie session.
+*   **Endpoint:** `POST /api/auth/login`
+*   **Headers:** `Content-Type: application/json`
+*   **Request Body:**
+    ```json
+    {
+      "idToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6..."
+    }
+    ```
+*   **Response (200 OK):**
+    ```json
+    {
+      "uid": "user_firebase_uid_12345",
+      "email": "user@example.com",
+      "name": "Jane Doe"
+    }
+    ```
+*   **Response Cookies Set:**
+    `token=<jwt_id_token>; HttpOnly; Secure; SameSite=None; Max-Age=604800`
+
+#### 2. Logout User
+Revokes the session and blacklists the current JWT token in Redis.
+*   **Endpoint:** `POST /api/auth/logout`
+*   **Headers:** `Cookie: token=<jwt_id_token>`
+*   **Response (200 OK):**
+    ```json
+    {
+      "message": "Logged out"
+    }
+    ```
+
+#### 3. Verify Protected Session
+Checks if the current cookie session is still active and valid.
+*   **Endpoint:** `GET /api/auth/protected`
+*   **Headers:** `Cookie: token=<jwt_id_token>`
+*   **Response (200 OK):**
+    ```json
+    {
+      "message": "Access granted to protected route",
+      "user": {
+        "uid": "user_firebase_uid_12345",
+        "email": "user@example.com",
+        "name": "Jane Doe"
+      }
+    }
+    ```
+*   **Response (401 Unauthorized):**
+    ```json
+    {
+      "error": "Unauthorized"
+    }
+    ```
+
+### 📄 Document Service (`collabdocs-document-service`)
+
+#### 1. Fetch All Documents
+Lists all active documents the user has access to.
+*   **Endpoint:** `GET /api/docs?all=true`
+*   **Headers:** `Cookie: token=<jwt_id_token>`
+*   **Response (200 OK):**
+    ```json
+    [
+      {
+        "id": "doc_id_9988",
+        "title": "Project Architecture",
+        "owner": "user_firebase_uid_12345",
+        "createdAt": "2026-07-09T10:00:00Z"
+      }
+    ]
+    ```
+
+#### 2. Create Document
+Creates a new blank document inside Firestore.
+*   **Endpoint:** `POST /api/docs`
+*   **Headers:** `Content-Type: application/json`, `Cookie: token=<jwt_id_token>`
+*   **Request Body:**
+    ```json
+    {
+      "title": "System Design Specs"
+    }
+    ```
+*   **Response (201 Created):**
+    ```json
+    {
+      "id": "new_doc_id_5544",
+      "title": "System Design Specs",
+      "owner": "user_firebase_uid_12345"
+    }
+    ```
+
+---
+
+## 8. WebSocket Protocol & Real-time Collaboration
+
+Real-time collaboration is managed over WebSocket channels. The Document Service uses `socket.io` to transmit document updates and coordinate editor awareness (cursor positions/selections).
+
+### WebSocket Lifecycle Events
+
+#### 1. Join Document Room
+Fired by the client immediately after establishing the WebSocket connection.
+*   **Event:** `join-document`
+*   **Payload:**
+    ```json
+    {
+      "roomName": "document-new_doc_id_5544",
+      "userInfo": {
+        "name": "Jane Doe",
+        "color": "#ff5733",
+        "id": "unique_client_session_id"
+      }
+    }
+    ```
+
+#### 2. Synchronize Document State
+Fired by the server to the client immediately after joining, containing the compiled base64-encoded Yjs state document.
+*   **Event:** `document-state`
+*   **Payload:**
+    ```json
+    {
+      "content": "AQJncm91cAJ0aXRsZQ..."
+    }
+    ```
+
+#### 3. Broadcast Document Update
+Transmits incremental updates (characters typed, deletions, formatting changes) between clients.
+*   **Event:** `update-document`
+*   **Direction:** Bi-directional (Client $\rightarrow$ Server $\rightarrow$ Other Clients)
+*   **Payload:** A raw Binary ArrayBuffer containing the Yjs incremental delta update.
+
+#### 4. Awareness & Cursor Sync
+Shares dynamic client states such as mouse selection ranges and cursor coordinates.
+*   **Event:** `awareness-update`
+*   **Direction:** Bi-directional (Client $\rightarrow$ Server $\rightarrow$ Other Clients)
+*   **Payload:** Binary awareness state encoding.
+
+---
+
+## 9. Data Storage Models
+
+### Google Firestore Schema
+
+#### `documents` Collection
+Stores the metadata and core binary editor states of all collaboration rooms.
+*   **Document ID:** Unique alphanumeric string (`docId`).
+*   **Fields:**
+    *   `title` (string): Title of the document.
+    *   `owner` (string): Firebase UID of the creator.
+    *   `createdAt` (timestamp): Document creation time.
+    *   `updatedAt` (timestamp): Last auto-save time.
+    *   `yjsState` (string): Base64-encoded binary representation of the Yjs document state. This string is parsed and decoded back into a binary state whenever a new client joins the room.
+
+### Upstash Redis Key Schema
+
+Redis maintains two database states:
+1.  **Blacklist Cache:** 
+    *   **Key Format:** `blacklist:<jwt_token_string>`
+    *   **Value:** `1`
+    *   **Expiry (TTL):** Equal to the remaining lifetime of the JWT token (verified by verifying expiration times via `verifyIdToken`).
+2.  **Socket.IO Adapter channels:**
+    *   Managed natively by `@socket.io/redis-adapter` for broadcasting messages across scaled microservice instances.
+
+---
+
+## 10. Local Development & Setup Workflow
+
+Follow these steps to run the entire microservices stack locally on your computer.
+
+### Prerequisites
+*   Node.js (v20+)
+*   Docker Desktop
+*   A Google Firebase Project (Authentication & Firestore enabled)
+
+### Step 1: Clone the Environment Settings
+Create a `.env` file in **`/backend`** (inside the root):
+```env
+PORT=5000
+JWT_SECRET=local_development_jwt_secret_key_999
+REDIS_URL=redis://localhost:6379
+
+FIREBASE_PROJECT_ID=your-firebase-project-id
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-...gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvgIBA...-----END PRIVATE KEY-----\n"
+```
+
+Create a `.env` file in **`/frontend`**:
+```env
+VITE_FIREBASE_API_KEY=your_firebase_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project
+VITE_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+VITE_FIREBASE_APP_ID=your_firebase_app_id
+VITE_BACKEND_URL=http://localhost:8080
+VITE_AUTH_URL=http://localhost:8080
+```
+
+### Step 2: Spin Up Local Services (Nginx & Redis)
+Use Docker Compose to run Nginx (API Gateway) and a local Redis container:
+```bash
+# From the root directory
+docker-compose up --build
+```
+
+### Step 3: Run Microservices Locally
+Open separate terminal tabs to run each Node service:
+```bash
+# Tab 1: Auth Service
+cd backend/services/auth-service
+npm install
+npm run dev
+
+# Tab 2: Document Service
+cd backend/services/document-service
+npm install
+npm run dev
+
+# Tab 3: Notification Service
+cd backend/services/notification-service
+npm install
+npm run dev
+```
+
+### Step 4: Run Frontend Client
+In a final terminal tab:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Open `http://localhost:5173` to test the collaborative suite locally!
+
+---
+
+## 11. Core Code Logic Explanations
+
+### Offline-First Collaboration (`useYjsProvider.js`)
+CollabDocs uses an **offline-first** design by combining **IndexedDB** (local browser database) and **WebSockets** (Document Service).
+
+1.  **IndexedDB Sync:** When the client opens a document, Yjs immediately loads the historical document state from IndexedDB. The editor is loaded instantly without waiting for network connections.
+2.  **WebSocket Sync:** Once connected, the client compares its local state vector with the server's state vector, resolves changes using CRDT rules, saves the merged state to IndexedDB, and updates the editor.
+
+### Custom EventBus Broker (`eventBus.js`)
+To decouple services, the **Document Service** publishes events to a Redis channel, and the **Notification Service** subscribes to it.
+
+*   **Publishing in Document Service:**
+    ```javascript
+    async publish(event, data) {
+      if (this.isRedisConnected && this.redisClient) {
+        const payload = JSON.stringify({ event, data });
+        await this.redisClient.publish("collabdocs-events", payload);
+      } else {
+        this.emitter.emit(event, data); // Fallback to local memory emitter
+      }
+    }
+    ```
+*   **Subscribing in Notification Service:**
+    ```javascript
+    await this.redisSubscriber.subscribe("collabdocs-events", (message) => {
+      const { event, data } = JSON.parse(message);
+      this.emitter.emit(event, data); // Triggers corresponding notification handler
+    });
+    ```
