@@ -70,6 +70,8 @@ services:
     envVars:
       - key: PORT
         value: "8080"
+      - key: NGINX_ENTRYPOINT_LOCAL_RESOLVERS
+        value: "1"
       - key: AUTH_SERVICE_HOST
         fromService:
           type: web

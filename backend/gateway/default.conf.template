@@ -1,14 +1,3 @@
-# Upstream Connection Pools for HTTP Keep-Alive
-upstream auth_backend {
-    server ${AUTH_SERVICE_HOST};
-    keepalive 32;
-}
-
-upstream doc_backend {
-    server ${DOC_SERVICE_HOST};
-    keepalive 32;
-}
-
 # CORS map - allow any onrender.com subdomain or localhost
 map $http_origin $cors_origin {
     default "";
@@ -20,11 +9,14 @@ server {
     listen 8080;
     server_name localhost;
 
+    # Use the local DNS resolver populated dynamically by Nginx entrypoint
+    resolver ${NGINX_LOCAL_RESOLVERS} ipv6=off valid=10s;
+
     # Auth Service REST Routing
     location /api/auth {
-        proxy_pass http://auth_backend;
+        set $auth_backend "http://${AUTH_SERVICE_HOST}";
+        proxy_pass $auth_backend;
         proxy_http_version 1.1;
-        proxy_set_header Connection "";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -33,9 +25,9 @@ server {
 
     # Document Service REST Routing
     location /api/docs {
-        proxy_pass http://doc_backend;
+        set $doc_backend "http://${DOC_SERVICE_HOST}";
+        proxy_pass $doc_backend;
         proxy_http_version 1.1;
-        proxy_set_header Connection "";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -44,9 +36,9 @@ server {
 
     # GraphQL Routing
     location /graphql {
-        proxy_pass http://doc_backend/graphql;
+        set $doc_backend "http://${DOC_SERVICE_HOST}";
+        proxy_pass $doc_backend;
         proxy_http_version 1.1;
-        proxy_set_header Connection "";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -55,7 +47,8 @@ server {
 
     # Socket.IO Routing (WebSockets support)
     location /socket.io/ {
-        proxy_pass http://doc_backend/socket.io/;
+        set $doc_backend "http://${DOC_SERVICE_HOST}";
+        proxy_pass $doc_backend;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "Upgrade";
