@@ -70,6 +70,16 @@ services:
     envVars:
       - key: PORT
         value: "8080"
+      - key: AUTH_SERVICE_HOST
+        fromService:
+          type: web
+          name: collabdocs-auth-service
+          property: hostport
+      - key: DOC_SERVICE_HOST
+        fromService:
+          type: web
+          name: collabdocs-document-service
+          property: hostport
 
   # 5. Frontend (Static Site React Vite)
   - type: web

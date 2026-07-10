@@ -1,0 +1,67 @@
+# Upstream Connection Pools for HTTP Keep-Alive
+upstream auth_backend {
+    server ${AUTH_SERVICE_HOST};
+    keepalive 32;
+}
+
+upstream doc_backend {
+    server ${DOC_SERVICE_HOST};
+    keepalive 32;
+}
+
+# CORS map - allow any onrender.com subdomain or localhost
+map $http_origin $cors_origin {
+    default "";
+    "~^https?://localhost(:[0-9]+)?$" "$http_origin";
+    "~^https://[a-zA-Z0-9-]+\.onrender\.com$" "$http_origin";
+}
+
+server {
+    listen 8080;
+    server_name localhost;
+
+    # Auth Service REST Routing
+    location /api/auth {
+        proxy_pass http://auth_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Document Service REST Routing
+    location /api/docs {
+        proxy_pass http://doc_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # GraphQL Routing
+    location /graphql {
+        proxy_pass http://doc_backend/graphql;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Socket.IO Routing (WebSockets support)
+    location /socket.io/ {
+        proxy_pass http://doc_backend/socket.io/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
