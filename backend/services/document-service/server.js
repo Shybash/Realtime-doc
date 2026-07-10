@@ -173,6 +173,34 @@ const apolloServer = new ApolloServer({
 });
 await apolloServer.start();
 
+app.get("/graphql", (req, res, next) => {
+  if (req.headers.accept && req.headers.accept.includes("text/html")) {
+    res.setHeader("Content-Type", "text/html");
+    res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CollabDocs GraphQL Console</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/graphiql@3.0.6/graphiql.min.css" />
+</head>
+<body style="margin: 0; overflow: hidden; height: 100vh; width: 100vw;">
+  <div id="graphiql" style="height: 100%;"></div>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/graphiql@3.0.6/graphiql.min.js"></script>
+  <script>
+    const root = ReactDOM.createRoot(document.getElementById('graphiql'));
+    const fetcher = GraphiQL.createFetcher({ url: '/graphql' });
+    root.render(React.createElement(GraphiQL, { fetcher: fetcher }));
+  </script>
+</body>
+</html>`);
+  } else {
+    next();
+  }
+});
+
 app.use(
   "/graphql",
   expressMiddleware(apolloServer, {

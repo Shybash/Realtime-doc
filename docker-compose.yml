@@ -31,7 +31,9 @@ services:
       - REDIS_URL=redis://redis:6379
       - FRONTEND_URL=http://localhost:5173
     networks:
-      - collabdocs-network
+      collabdocs-network:
+        aliases:
+          - collabdocs-auth-service
 
   document-service:
     build:
@@ -50,7 +52,9 @@ services:
       - REDIS_URL=redis://redis:6379
       - FRONTEND_URL=http://localhost:5173
     networks:
-      - collabdocs-network
+      collabdocs-network:
+        aliases:
+          - collabdocs-document-service
 
   notification-service:
     build:
