@@ -12,6 +12,31 @@ server {
     # Use the local DNS resolver populated dynamically by Nginx entrypoint
     resolver ${NGINX_LOCAL_RESOLVERS} ipv6=off valid=10s;
 
+    # CORS Headers and Preflight Handling at Gateway Level
+    # Hide any CORS headers from upstream backend services to avoid duplicates
+    proxy_hide_header 'Access-Control-Allow-Origin';
+    proxy_hide_header 'Access-Control-Allow-Credentials';
+    proxy_hide_header 'Access-Control-Allow-Methods';
+    proxy_hide_header 'Access-Control-Allow-Headers';
+
+    # Add unified CORS headers for successful responses
+    add_header 'Access-Control-Allow-Origin' $cors_origin always;
+    add_header 'Access-Control-Allow-Credentials' 'true' always;
+    add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS, PATCH' always;
+    add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+
+    # Preflight OPTIONS Handling
+    if ($request_method = 'OPTIONS') {
+        add_header 'Access-Control-Allow-Origin' $cors_origin always;
+        add_header 'Access-Control-Allow-Credentials' 'true' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS, PATCH' always;
+        add_header 'Access-Control-Allow-Headers' 'DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization' always;
+        add_header 'Access-Control-Max-Age' 1728000;
+        add_header 'Content-Type' 'text/plain; charset=utf-8';
+        add_header 'Content-Length' 0;
+        return 204;
+    }
+
     # Auth Service REST Routing
     location /api/auth {
         set $auth_backend "http://${AUTH_SERVICE_HOST}";
